@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            background-color: rgb(64, 64, 64);
+        }
+    </style>
+</head>
+<body>
+    <button type="button" onclick="init()">Start</button>
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+    <div style="background-color: black; color: white; text-align:center"><h1>PONTUAÇÃO TOTAL</h1></div>
+    <div style="background-color: yellow; display: flex;"><h1>Neutro: </h1><h1 id="pont-neutro" style="margin-left:50px; background-color:white; width:150px; text-align: center;">0</h1></div>
+    <div style="background-color: green; display: flex;"><h1>1 mão levantada: </h1><h1 id="pont-1-mao-levantada" style="margin-left:50px; background-color:white; width:150px; text-align: center;">0</h1></div>
+    <div style="background-color: blue; display: flex;"><h1>Abosulute cinema: </h1><h1 id="pont-absolute-cinema" style="margin-left:50px; background-color:white; width:150px; text-align: center;">0</h1></div>
+    
+    <!-- Versões compatíveis -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8/dist/teachablemachine-pose.min.js"></script>
+    
+    <script type="text/javascript">
+        // the link to your model provided by Teachable Machine export panel
+        const URL = "https://teachablemachine.withgoogle.com/models/rd2IE6YSu/";
+
+        let model, webcam, labelContainer, maxPredictions;
+        
+        var pontuacao_neutro = 0;
+        var pontuacao_1_mao_levantada = 0;
+        var pontuacao_absolute_cinema = 0;
+
+        // Load the pose model and setup the webcam
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            // load the model and metadata
+            model = await tmPose.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            // Convenience function to setup a webcam
+            const flip = true; // whether to flip the webcam
+            webcam = new tmPose.Webcam(200, 200, flip); // width, height, flip
+            await webcam.setup(); // request access to the webcam
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            // append elements to the DOM
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) { // and class labels
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+
+        async function loop() {
+            webcam.update(); // update the webcam frame
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        var contador = 0;
+        // run the webcam image through the pose model
+        async function predict() {
+            // IMPORTANTE: Para modelos de pose, use este fluxo:
+            // 1. Primeiro estime a pose
+            const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
+            // 2. Depois faça a predição com os dados da pose
+            const prediction = await model.predict(posenetOutput);
+            
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction =
+                    prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+            }
+            contador++
+            if (contador % 30 == 0) {
+                contador = 0
+
+                let indice_maior = -1
+                let maior = 0
+                for (let i = 0; i < maxPredictions; i++) {
+                    if (prediction[i].probability > maior) {
+                        maior = prediction[i].probability
+                        indice_maior = i
+                    }
+                }
+                
+                if (maior > 0.85) { 
+                    switch (indice_maior) {
+                        case 0:
+                            pontuacao_neutro++
+                            document.getElementById("pont-neutro").innerHTML = pontuacao_neutro
+                            break
+                        case 2:
+                            pontuacao_1_mao_levantada++
+                            document.getElementById("pont-1-mao-levantada").innerHTML = pontuacao_1_mao_levantada
+                            break
+                        case 1:
+                            pontuacao_absolute_cinema++
+                            document.getElementById("pont-absolute-cinema").innerHTML = pontuacao_absolute_cinema
+                            break
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
